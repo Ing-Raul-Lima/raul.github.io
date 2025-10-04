@@ -35,12 +35,31 @@
             <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h2 class="text-2xl font-semibold mb-6 border-b pb-3 dark:border-gray-600">1. Datos de la Reunión</h2>
                 <form id="acta-form" class="space-y-4">
-                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <label for="api-key" class="block text-sm font-bold text-blue-800 dark:text-blue-300">Tu Google AI API Key</label>
-                        <input type="password" id="api-key" name="api-key" placeholder="Pega tu clave de API aquí" required class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2">
+                    <!-- Selector de Proveedor de IA -->
+                    <div>
+                        <label for="ai-provider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Proveedor de IA</label>
+                        <select id="ai-provider" name="ai-provider" class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2">
+                            <option value="google">Google Gemini</option>
+                            <option value="openai">OpenAI GPT-4o mini</option>
+                        </select>
+                    </div>
+
+                    <!-- Campos de API condicionales -->
+                    <div id="google-api-container" class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <label for="api-key-google" class="block text-sm font-bold text-blue-800 dark:text-blue-300">Tu Google AI API Key</label>
+                        <input type="password" id="api-key-google" name="api-key-google" placeholder="Pega tu clave de API de Google aquí" class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
                             Tu clave se guarda en tu navegador. 
                             <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline font-semibold">Obtén una clave gratuita aquí.</a>
+                        </p>
+                    </div>
+                    
+                    <div id="openai-api-container" class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 hidden">
+                        <label for="api-key-openai" class="block text-sm font-bold text-green-800 dark:text-green-300">Tu OpenAI API Key</label>
+                        <input type="password" id="api-key-openai" name="api-key-openai" placeholder="Pega tu clave de API de OpenAI aquí" class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm p-2">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            Tu clave se guarda en tu navegador. 
+                            <a href="https://platform.openai.com/api-keys" target="_blank" class="text-green-600 dark:text-green-400 hover:underline font-semibold">Obtén una clave gratuita aquí.</a>
                         </p>
                     </div>
 
@@ -81,12 +100,11 @@
                         </button>
                     </div>
                 </div>
-
             </div>
 
             <!-- Columna de Vista Previa -->
             <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-inner">
-                <div class="flex justify-between items-center mb-4">
+                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">Vista Previa del Acta</h2>
                     <button id="download-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 hidden">
                         Descargar PDF
@@ -120,18 +138,34 @@
         const downloadBtn = document.getElementById('download-btn');
         const actaPreviewContainer = document.getElementById('acta-preview-container');
         const form = document.getElementById('acta-form');
-        const apiKeyInput = document.getElementById('api-key');
         const errorMessageDiv = document.getElementById('error-message');
+
+        const aiProviderSelector = document.getElementById('ai-provider');
+        const googleApiContainer = document.getElementById('google-api-container');
+        const openaiApiContainer = document.getElementById('openai-api-container');
+        const apiKeyInputGoogle = document.getElementById('api-key-google');
+        const apiKeyInputOpenAI = document.getElementById('api-key-openai');
 
         let signaturePads = {};
         let signatureImages = {};
 
         window.addEventListener('load', () => {
-            const savedApiKey = localStorage.getItem('gemini-api-key');
-            if (savedApiKey) { apiKeyInput.value = savedApiKey; }
+            apiKeyInputGoogle.value = localStorage.getItem('gemini-api-key') || '';
+            apiKeyInputOpenAI.value = localStorage.getItem('openai-api-key') || '';
             document.getElementById('fecha').valueAsDate = new Date();
         });
+        
+        aiProviderSelector.addEventListener('change', () => {
+            if (aiProviderSelector.value === 'google') {
+                googleApiContainer.classList.remove('hidden');
+                openaiApiContainer.classList.add('hidden');
+            } else {
+                googleApiContainer.classList.add('hidden');
+                openaiApiContainer.classList.remove('hidden');
+            }
+        });
 
+        // ... (el resto del código de manejo de firmas y formulario no cambia)
         setupFirmasBtn.addEventListener('click', () => {
             const participantes = participantesTextarea.value.trim().split('\n').filter(p => p);
             if (participantes.length === 0) {
@@ -140,15 +174,12 @@
                 return;
             }
             errorMessageDiv.classList.add('hidden');
-
             firmasGrid.innerHTML = '';
             signaturePads = {};
             signatureImages = {};
-
             participantes.forEach((participante, index) => {
                 const canvasId = `signature-pad-${index}`;
                 const fileInputId = `file-input-${index}`;
-                
                 const firmaHTML = `
                     <div class="firma-block" data-participante="${participante}">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">${participante}</label>
@@ -164,7 +195,6 @@
                 `;
                 firmasGrid.innerHTML += firmaHTML;
             });
-
             setTimeout(() => {
                 participantes.forEach((p, index) => {
                     const canvas = document.getElementById(`signature-pad-${index}`);
@@ -178,7 +208,6 @@
             firmasContainer.classList.remove('hidden');
             setupFirmasBtn.classList.add('hidden');
         });
-
         firmasGrid.addEventListener('click', (e) => {
             if (e.target.classList.contains('clear-btn')) {
                 const id = e.target.dataset.clearId;
@@ -189,11 +218,9 @@
                 }
             }
         });
-
         firmasGrid.addEventListener('change', (e) => {
             if (e.target.type === 'file') {
-                const file = e.target.files[0];
-                if (!file) return;
+                const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const canvasId = e.target.dataset.canvasId;
@@ -205,8 +232,7 @@
                     const img = new Image();
                     img.onload = () => {
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        const hRatio = canvas.width / img.width;
-                        const vRatio = canvas.height / img.height;
+                        const hRatio = canvas.width / img.width, vRatio = canvas.height / img.height;
                         const ratio = Math.min(hRatio, vRatio, 1);
                         const centerShift_x = (canvas.width - img.width * ratio) / 2;
                         const centerShift_y = (canvas.height - img.height * ratio) / 2;
@@ -217,70 +243,69 @@
                 reader.readAsDataURL(file);
             }
         });
-
         generateBtn.addEventListener('click', async () => {
             errorMessageDiv.classList.add('hidden');
             if (!form.checkValidity()) { form.reportValidity(); return; }
-            const apiKey = apiKeyInput.value.trim();
-            if (!apiKey) {
-                errorMessageDiv.textContent = 'Por favor, ingresa tu Google AI API Key para continuar.';
-                errorMessageDiv.classList.remove('hidden');
-                apiKeyInput.focus();
-                return;
+            const aiProvider = aiProviderSelector.value;
+            let apiKey = '';
+            if (aiProvider === 'google') {
+                apiKey = apiKeyInputGoogle.value.trim();
+                if (!apiKey) {
+                    errorMessageDiv.textContent = 'Por favor, ingresa tu Google AI API Key.';
+                    errorMessageDiv.classList.remove('hidden');
+                    return;
+                }
+                localStorage.setItem('gemini-api-key', apiKey);
+            } else {
+                apiKey = apiKeyInputOpenAI.value.trim();
+                if (!apiKey) {
+                    errorMessageDiv.textContent = 'Por favor, ingresa tu OpenAI API Key.';
+                    errorMessageDiv.classList.remove('hidden');
+                    return;
+                }
+                localStorage.setItem('openai-api-key', apiKey);
             }
-            localStorage.setItem('gemini-api-key', apiKey);
             loader.classList.remove('hidden');
             actaContent.innerHTML = '<p class="text-gray-400">...</p>';
             downloadBtn.classList.add('hidden');
-            
             const formData = new FormData(form);
             const fecha = formData.get('fecha');
             const comite = formData.get('comite');
             const asunto = formData.get('asunto');
             const participantes = formData.get('participantes').trim().split('\n');
-
-            // CAMBIO 1 y 3: Prompts reescritos para ser más directos y evitar plantillas/saludos.
             const systemPrompt = `Tu única función es redactar un acta de reunión completa y detallada usando los datos proporcionados. Eres un experto administrativo. NO saludes. NO ofrezcas plantillas. NO dejes placeholders. NO añadas texto introductorio ni explicaciones. Tu respuesta debe ser ÚNICAMENTE el contenido del acta, comenzando directamente con el título.`;
-            
-            const userQuery = `Redacta el acta de reunión COMPLETA con la siguiente información. Desarrolla los puntos de la agenda, los acuerdos tomados y las tareas pendientes de forma coherente y profesional, basándote en el asunto principal. El acta debe estar totalmente redactada y lista para firmar.
-
-            **Datos de la Reunión:**
-            - **Comité:** ${comite}
-            - **Fecha:** ${fecha}
-            - **Asunto Principal a Desarrollar:** ${asunto}
-            - **Participantes:**\n${participantes.join('\n')}`;
-
+            const userQuery = `Redacta el acta de reunión COMPLETA con la siguiente información. Desarrolla los puntos de la agenda, los acuerdos tomados y las tareas pendientes de forma coherente y profesional, basándote en el asunto principal. El acta debe estar totalmente redactada y lista para firmar.\n\n**Datos de la Reunión:**\n- **Comité:** ${comite}\n- **Fecha:** ${fecha}\n- **Asunto Principal a Desarrollar:** ${asunto}\n- **Participantes:**\n${participantes.join('\n')}`;
+            let generatedText = '';
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-                const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, };
-                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) { const errorData = await response.json(); throw new Error(`Error en la API: ${errorData.error.message}`); }
-                const result = await response.json();
-                let generatedText = result.candidates[0].content.parts[0].text;
-                
+                if (aiProvider === 'google') {
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                    const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!response.ok) { const errorData = await response.json(); throw new Error(`Google API: ${errorData.error.message}`); }
+                    const result = await response.json();
+                    generatedText = result.candidates[0].content.parts[0].text;
+                } else { // OpenAI
+                    const apiUrl = 'https://api.openai.com/v1/chat/completions';
+                    const payload = { model: "gpt-4o-mini", messages: [{ role: "system", content: systemPrompt },{ role: "user", content: userQuery }]};
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, body: JSON.stringify(payload) });
+                    if (!response.ok) { const errorData = await response.json(); throw new Error(`OpenAI API: ${errorData.error.message}`); }
+                    const result = await response.json();
+                    generatedText = result.choices[0].message.content;
+                }
                 generatedText = generatedText.replace(/## (.*)/g, '<h2 class="text-lg font-bold mt-4 mb-2">$1</h2>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\* (.*)/g, '<li class="ml-5 list-disc">$1</li>');
                 const startIndex = generatedText.indexOf('<h2');
-                if (startIndex > 5) { // Permite un pequeño margen por si hay espacios
-                    generatedText = generatedText.substring(startIndex);
-                }
+                if (startIndex > 5) { generatedText = generatedText.substring(startIndex); }
                 generatedText = generatedText.replace(/\n/g, '<br>');
-
                 actaContent.innerHTML = `
                     ${generatedText}
                     <h2 class="text-lg font-bold mt-8 mb-4">Firmas de Conformidad:</h2>
                     <div id="firmas-preview" class="grid grid-cols-2 md:grid-cols-3 gap-6 mt-4">
                         ${participantes.map((p) => {
                             const firmaSrc = signatureImages[p] || (signaturePads[p].isEmpty() ? 'https://placehold.co/200x80/FFFFFF/FFFFFF?text=.' : signaturePads[p].toDataURL());
-                            return `
-                                <div class="text-center p-2 border-t-2 border-gray-400">
-                                    <img src="${firmaSrc}" alt="Firma de ${p}" class="mx-auto h-16 object-contain">
-                                    <p class="text-xs font-semibold mt-2">${p}</p>
-                                </div>`;
+                            return `<div class="text-center p-2 border-t-2 border-gray-400"><img src="${firmaSrc}" alt="Firma de ${p}" class="mx-auto h-16 object-contain"><p class="text-xs font-semibold mt-2">${p}</p></div>`;
                         }).join('')}
-                    </div>
-                `;
+                    </div>`;
                 downloadBtn.classList.remove('hidden');
-
             } catch (error) {
                 console.error("Error al generar el acta:", error);
                 errorMessageDiv.textContent = `Hubo un error al contactar con la IA: ${error.message}. Verifica tu API Key.`;
@@ -291,51 +316,73 @@
             }
         });
 
-        // CAMBIO 2: Lógica de PDF con márgenes de 1 pulgada y fuente de 11pt.
+        // CAMBIO: Lógica de PDF completamente reescrita para paginación robusta.
         downloadBtn.addEventListener('click', () => {
             const { jsPDF } = window.jspdf;
             const element = document.getElementById('acta-preview-container');
-            const originalPadding = element.style.padding;
-            const originalFontSize = element.style.fontSize;
+            const originalStyles = {
+                padding: element.style.padding,
+                fontSize: element.style.fontSize,
+                lineHeight: element.style.lineHeight
+            };
             
             // Aplicar estilos para la captura del PDF
             element.style.padding = '0';
-            element.style.fontSize = '11pt';
+            element.style.fontSize = '10pt'; // Tamaño de fuente ajustado a 10pt
             element.style.lineHeight = '1.5';
 
-            html2canvas(element, { scale: 2, useCORS: true }).then(canvas => {
-                // Restaurar estilos originales
-                element.style.padding = originalPadding;
-                element.style.fontSize = originalFontSize;
-                element.style.lineHeight = '';
-
-                const imgData = canvas.toDataURL('image/png');
+            html2canvas(element, { scale: 2, useCORS: true, windowWidth: element.scrollWidth, windowHeight: element.scrollHeight }).then(sourceCanvas => {
+                // Restaurar estilos originales de la vista previa
+                element.style.padding = originalStyles.padding;
+                element.style.fontSize = originalStyles.fontSize;
+                element.style.lineHeight = originalStyles.lineHeight;
+                
                 const pdf = new jsPDF('p', 'mm', 'a4');
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = pdf.internal.pageSize.getHeight();
                 
                 const margin = 25.4; // 1 pulgada en mm
-                const contentWidth = pdfWidth - (margin * 2);
-                const contentHeight = pdfHeight - (margin * 2);
+                const contentWidthMM = pdfWidth - (margin * 2);
+                const contentHeightMM = pdfHeight - (margin * 2);
 
-                const canvasWidth = canvas.width;
-                const canvasHeight = canvas.height;
-                const ratio = canvasWidth / canvasHeight;
-                
-                const imgWidth = contentWidth;
-                const imgHeight = imgWidth / ratio;
+                // Calcular la relación de aspecto del canvas original
+                const sourceCanvasRatio = sourceCanvas.height / sourceCanvas.width;
+                const totalImgHeightMM = contentWidthMM * sourceCanvasRatio;
 
-                let heightLeft = imgHeight;
-                let position = 0;
+                // Si la imagen total es más corta que una página, simplemente se añade.
+                if (totalImgHeightMM <= contentHeightMM) {
+                     pdf.addImage(sourceCanvas.toDataURL('image/png'), 'PNG', margin, margin, contentWidthMM, totalImgHeightMM);
+                } else {
+                    // Lógica para dividir en múltiples páginas
+                    const pxPerMillimeter = sourceCanvas.width / contentWidthMM;
+                    const sliceHeightPX = contentHeightMM * pxPerMillimeter;
 
-                pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
-                heightLeft -= contentHeight;
+                    let yPositionPX = 0; // Posición Y en el canvas de origen (en píxeles)
+                    while (yPositionPX < sourceCanvas.height) {
+                        const remainingHeightPX = sourceCanvas.height - yPositionPX;
+                        const currentSliceHeightPX = Math.min(sliceHeightPX, remainingHeightPX);
 
-                while (heightLeft > 0) {
-                    position -= contentHeight;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', margin, position + margin, imgWidth, imgHeight);
-                    heightLeft -= contentHeight;
+                        // Crear un canvas temporal para la porción de la página
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = sourceCanvas.width;
+                        tempCanvas.height = currentSliceHeightPX;
+                        const tempCtx = tempCanvas.getContext('2d');
+
+                        // Dibujar la "rebanada" desde el canvas de origen al canvas temporal
+                        tempCtx.drawImage(sourceCanvas, 0, yPositionPX, sourceCanvas.width, currentSliceHeightPX, 0, 0, sourceCanvas.width, currentSliceHeightPX);
+                        
+                        const sliceImgData = tempCanvas.toDataURL('image/png');
+                        const sliceImgHeightMM = currentSliceHeightPX / pxPerMillimeter;
+                        
+                        // Añadir nueva página si no es la primera
+                        if (yPositionPX > 0) {
+                            pdf.addPage();
+                        }
+
+                        // Añadir la imagen de la rebanada al PDF, siempre en la misma posición con márgenes
+                        pdf.addImage(sliceImgData, 'PNG', margin, margin, contentWidthMM, sliceImgHeightMM);
+                        yPositionPX += sliceHeightPX;
+                    }
                 }
                 
                 pdf.save(`Acta-${form.comite.value.replace(/\s/g, '_')}-${form.fecha.value}.pdf`);
