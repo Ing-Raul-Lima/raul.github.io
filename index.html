@@ -110,7 +110,6 @@
     </div>
 
     <script>
-        // ... (variables declaration remains the same)
         const setupFirmasBtn = document.getElementById('setup-firmas-btn');
         const participantesTextarea = document.getElementById('participantes');
         const firmasContainer = document.getElementById('firmas-container');
@@ -125,7 +124,7 @@
         const errorMessageDiv = document.getElementById('error-message');
 
         let signaturePads = {};
-        let signatureImages = {}; // NUEVO: Objeto para guardar firmas subidas
+        let signatureImages = {};
 
         window.addEventListener('load', () => {
             const savedApiKey = localStorage.getItem('gemini-api-key');
@@ -150,7 +149,6 @@
                 const canvasId = `signature-pad-${index}`;
                 const fileInputId = `file-input-${index}`;
                 
-                // CAMBIO: Se añade un input de tipo file por cada participante
                 const firmaHTML = `
                     <div class="firma-block" data-participante="${participante}">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">${participante}</label>
@@ -187,33 +185,26 @@
                 const participante = Object.keys(signaturePads).find(key => signaturePads[key].canvas.id === id);
                 if (participante) {
                     signaturePads[participante].clear();
-                    delete signatureImages[participante]; // Borra también la imagen subida
+                    delete signatureImages[participante];
                 }
             }
         });
 
-        // NUEVO: Event listener para manejar la subida de imágenes de firma
         firmasGrid.addEventListener('change', (e) => {
             if (e.target.type === 'file') {
                 const file = e.target.files[0];
                 if (!file) return;
-
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const canvasId = e.target.dataset.canvasId;
                     const canvas = document.getElementById(canvasId);
                     const participante = e.target.closest('.firma-block').dataset.participante;
-                    
-                    // Guardar la imagen y limpiar el canvas
                     signatureImages[participante] = event.target.result;
                     signaturePads[participante].clear();
-                    
-                    // Mostrar la imagen en el canvas como preview
                     const ctx = canvas.getContext('2d');
                     const img = new Image();
                     img.onload = () => {
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        // Dibuja la imagen centrada y escalada
                         const hRatio = canvas.width / img.width;
                         const vRatio = canvas.height / img.height;
                         const ratio = Math.min(hRatio, vRatio, 1);
@@ -227,14 +218,9 @@
             }
         });
 
-
         generateBtn.addEventListener('click', async () => {
-            // ... (validations remain the same)
             errorMessageDiv.classList.add('hidden');
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
+            if (!form.checkValidity()) { form.reportValidity(); return; }
             const apiKey = apiKeyInput.value.trim();
             if (!apiKey) {
                 errorMessageDiv.textContent = 'Por favor, ingresa tu Google AI API Key para continuar.';
@@ -246,17 +232,25 @@
             loader.classList.remove('hidden');
             actaContent.innerHTML = '<p class="text-gray-400">...</p>';
             downloadBtn.classList.add('hidden');
+            
             const formData = new FormData(form);
             const fecha = formData.get('fecha');
             const comite = formData.get('comite');
             const asunto = formData.get('asunto');
             const participantes = formData.get('participantes').trim().split('\n');
 
-            const systemPrompt = `Eres un asistente administrativo experto en la redacción de documentos oficiales... (resto del prompt sin cambios)`;
-            const userQuery = `Genera el acta para la siguiente reunión... (resto del prompt sin cambios)`;
+            // CAMBIO 1 y 3: Prompts reescritos para ser más directos y evitar plantillas/saludos.
+            const systemPrompt = `Tu única función es redactar un acta de reunión completa y detallada usando los datos proporcionados. Eres un experto administrativo. NO saludes. NO ofrezcas plantillas. NO dejes placeholders. NO añadas texto introductorio ni explicaciones. Tu respuesta debe ser ÚNICAMENTE el contenido del acta, comenzando directamente con el título.`;
+            
+            const userQuery = `Redacta el acta de reunión COMPLETA con la siguiente información. Desarrolla los puntos de la agenda, los acuerdos tomados y las tareas pendientes de forma coherente y profesional, basándote en el asunto principal. El acta debe estar totalmente redactada y lista para firmar.
+
+            **Datos de la Reunión:**
+            - **Comité:** ${comite}
+            - **Fecha:** ${fecha}
+            - **Asunto Principal a Desarrollar:** ${asunto}
+            - **Participantes:**\n${participantes.join('\n')}`;
 
             try {
-                // ... (API call remains the same)
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
                 const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, };
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -264,15 +258,13 @@
                 const result = await response.json();
                 let generatedText = result.candidates[0].content.parts[0].text;
                 
-                // CAMBIO 1: Limpiar la respuesta de la IA
                 generatedText = generatedText.replace(/## (.*)/g, '<h2 class="text-lg font-bold mt-4 mb-2">$1</h2>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\* (.*)/g, '<li class="ml-5 list-disc">$1</li>');
                 const startIndex = generatedText.indexOf('<h2');
-                if (startIndex > -1) {
+                if (startIndex > 5) { // Permite un pequeño margen por si hay espacios
                     generatedText = generatedText.substring(startIndex);
                 }
                 generatedText = generatedText.replace(/\n/g, '<br>');
 
-                // CAMBIO 3: La vista previa de firmas ahora considera imágenes subidas
                 actaContent.innerHTML = `
                     ${generatedText}
                     <h2 class="text-lg font-bold mt-8 mb-4">Firmas de Conformidad:</h2>
@@ -291,7 +283,7 @@
 
             } catch (error) {
                 console.error("Error al generar el acta:", error);
-                errorMessageDiv.textContent = `Hubo un error al contactar con la IA: ${error.message}. Verifica que tu API Key sea correcta.`;
+                errorMessageDiv.textContent = `Hubo un error al contactar con la IA: ${error.message}. Verifica tu API Key.`;
                 errorMessageDiv.classList.remove('hidden');
                 actaContent.innerHTML = '';
             } finally {
@@ -299,38 +291,51 @@
             }
         });
 
-        // CAMBIO 2: Lógica de descarga a PDF mejorada para paginación A4
+        // CAMBIO 2: Lógica de PDF con márgenes de 1 pulgada y fuente de 11pt.
         downloadBtn.addEventListener('click', () => {
             const { jsPDF } = window.jspdf;
             const element = document.getElementById('acta-preview-container');
+            const originalPadding = element.style.padding;
+            const originalFontSize = element.style.fontSize;
             
+            // Aplicar estilos para la captura del PDF
+            element.style.padding = '0';
+            element.style.fontSize = '11pt';
+            element.style.lineHeight = '1.5';
+
             html2canvas(element, { scale: 2, useCORS: true }).then(canvas => {
+                // Restaurar estilos originales
+                element.style.padding = originalPadding;
+                element.style.fontSize = originalFontSize;
+                element.style.lineHeight = '';
+
                 const imgData = canvas.toDataURL('image/png');
                 const pdf = new jsPDF('p', 'mm', 'a4');
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = pdf.internal.pageSize.getHeight();
                 
+                const margin = 25.4; // 1 pulgada en mm
+                const contentWidth = pdfWidth - (margin * 2);
+                const contentHeight = pdfHeight - (margin * 2);
+
                 const canvasWidth = canvas.width;
                 const canvasHeight = canvas.height;
-                
-                // Calcular la relación de aspecto para mantener las proporciones
                 const ratio = canvasWidth / canvasHeight;
-                const imgWidth = pdfWidth - 20; // Dejar 10mm de margen a cada lado
+                
+                const imgWidth = contentWidth;
                 const imgHeight = imgWidth / ratio;
 
                 let heightLeft = imgHeight;
                 let position = 0;
 
-                // Añadir la primera página
-                pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-                heightLeft -= (pdfHeight - 20);
+                pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+                heightLeft -= contentHeight;
 
-                // Añadir páginas adicionales si el contenido es más largo
                 while (heightLeft > 0) {
-                    position -= (pdfHeight - 20);
+                    position -= contentHeight;
                     pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 10, position + 10, imgWidth, imgHeight);
-                    heightLeft -= (pdfHeight - 20);
+                    pdf.addImage(imgData, 'PNG', margin, position + margin, imgWidth, imgHeight);
+                    heightLeft -= contentHeight;
                 }
                 
                 pdf.save(`Acta-${form.comite.value.replace(/\s/g, '_')}-${form.fecha.value}.pdf`);
@@ -340,5 +345,4 @@
     </script>
 </body>
 </html>
-
 
